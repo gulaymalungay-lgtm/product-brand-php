@@ -1,18 +1,20 @@
 FROM php:8.2-apache
 
-# Enable Apache mod_rewrite for routing
+# Enable rewrite module
 RUN a2enmod rewrite
 
-# Copy all files to web root
+# Copy files
 COPY . /var/www/html/
 
-# Allow .htaccess overrides
-RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+# Configure Apache to allow .htaccess
+RUN echo '<Directory /var/www/html/>\n\
+    Options Indexes FollowSymLinks\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>' > /etc/apache2/conf-available/override.conf \
+    && a2enconf override
 
-# Set proper permissions
-RUN chown -R www-data:www-data /var/www/html
-
-# Expose port 80
+# Expose port
 EXPOSE 80
 
 # Start Apache
