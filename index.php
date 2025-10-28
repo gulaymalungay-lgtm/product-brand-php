@@ -87,7 +87,7 @@ function getProductsForBrand($vendor) {
     global $CONFIG;
     
     $allProducts = [];
-    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
+    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
     
     while ($url) {
         $response = makeRequest($url, 'GET', [
@@ -228,7 +228,7 @@ function getVendorFromInventoryItem($inventoryItemId) {
     ';
     
     $response = makeRequest(
-        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/graphql.json",
+        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/graphql.json",
         'POST',
         [
             "X-Shopify-Access-Token: {$CONFIG['SHOPIFY_ACCESS_TOKEN']}",
@@ -482,7 +482,7 @@ if ($path === '/admin/webhooks' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
     
     $response = makeRequest(
-        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/webhooks.json",
+        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/webhooks.json",
         'GET',
         [
             "X-Shopify-Access-Token: {$CONFIG['SHOPIFY_ACCESS_TOKEN']}",
