@@ -32,6 +32,16 @@ foreach ($requiredVars as $var) {
 }
 
 $STATE_FILE = __DIR__ . '/notification_state.json';
+$LOG_FILE = __DIR__ . '/inventory_monitor.log';
+
+// Custom logging function
+function logMessage($message, $level = 'INFO') {
+    global $LOG_FILE;
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] [$level] $message\n";
+    file_put_contents($LOG_FILE, $logEntry, FILE_APPEND);
+    error_log($message); // Also log to PHP error log
+}
 
 function loadState() {
     global $STATE_FILE;
@@ -44,15 +54,20 @@ function loadState() {
 function saveState($state) {
     global $STATE_FILE;
     file_put_contents($STATE_FILE, json_encode($state, JSON_PRETTY_PRINT));
+    logMessage("State saved: " . json_encode($state));
 }
 
 function verifyWebhook($data, $hmacHeader) {
     global $CONFIG;
     $calculatedHmac = base64_encode(hash_hmac('sha256', $data, $CONFIG['SHOPIFY_WEBHOOK_SECRET'], true));
-    return hash_equals($calculatedHmac, $hmacHeader);
+    $isValid = hash_equals($calculatedHmac, $hmacHeader);
+    logMessage("Webhook verification: " . ($isValid ? 'VALID' : 'INVALID'));
+    return $isValid;
 }
 
 function makeRequest($url, $method = 'GET', $headers = [], $data = null) {
+    logMessage("Making $method request to: $url");
+    
     $ch = curl_init();
     
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -76,6 +91,8 @@ function makeRequest($url, $method = 'GET', $headers = [], $data = null) {
     
     curl_close($ch);
     
+    logMessage("Response code: $httpCode");
+    
     return [
         'code' => $httpCode,
         'headers' => $header,
@@ -85,6 +102,8 @@ function makeRequest($url, $method = 'GET', $headers = [], $data = null) {
 
 function getProductsForBrand($vendor) {
     global $CONFIG;
+    
+    logMessage("Fetching products for brand: $vendor");
     
     $allProducts = [];
     $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
@@ -96,7 +115,7 @@ function getProductsForBrand($vendor) {
         ]);
         
         if ($response['code'] !== 200) {
-            error_log("Shopify API error: " . $response['code']);
+            logMessage("Shopify API error for brand $vendor: " . $response['code'], 'ERROR');
             break;
         }
         
@@ -109,13 +128,18 @@ function getProductsForBrand($vendor) {
         }
     }
     
+    logMessage("Fetched " . count($allProducts) . " products for brand: $vendor");
+    
     return $allProducts;
 }
 
 function checkBrandStock($vendor) {
+    logMessage("Checking stock status for brand: $vendor");
+    
     $products = getProductsForBrand($vendor);
     
     if (empty($products)) {
+        logMessage("No products found for brand: $vendor", 'WARNING');
         return [
             'allOOS' => false,
             'totalProducts' => 0,
@@ -139,20 +163,26 @@ function checkBrandStock($vendor) {
         }
     }
     
-    return [
+    $result = [
         'allOOS' => $totalProducts === $oosProducts,
         'totalProducts' => $totalProducts,
         'oosProducts' => $oosProducts,
         'inStockProducts' => $totalProducts - $oosProducts
     ];
+    
+    logMessage("Stock check result for $vendor: " . json_encode($result));
+    
+    return $result;
 }
 
 // Send email via SendGrid
 function sendEmail($subject, $message) {
     global $CONFIG;
     
+    logMessage("Attempting to send email: $subject");
+    
     if (empty($CONFIG['SENDGRID_API_KEY'])) {
-        error_log("No SendGrid API key configured");
+        logMessage("No SendGrid API key configured", 'ERROR');
         return ['success' => false, 'error' => 'No email service configured'];
     }
     
@@ -203,16 +233,18 @@ function sendEmail($subject, $message) {
     ], json_encode($data));
     
     if ($response['code'] === 202) {
-        error_log("Email sent: $subject");
+        logMessage("Email sent successfully: $subject", 'SUCCESS');
         return ['success' => true, 'method' => 'sendgrid'];
     } else {
-        error_log("SendGrid error: " . $response['body']);
+        logMessage("SendGrid error: " . $response['body'], 'ERROR');
         return ['success' => false, 'error' => $response['body']];
     }
 }
 
 function getVendorFromInventoryItem($inventoryItemId) {
     global $CONFIG;
+    
+    logMessage("Fetching vendor for inventory item: $inventoryItemId");
     
     $query = '
         query getInventoryItem($id: ID!) {
@@ -243,25 +275,93 @@ function getVendorFromInventoryItem($inventoryItemId) {
     );
     
     if ($response['code'] !== 200) {
+        logMessage("GraphQL request failed with code: " . $response['code'], 'ERROR');
         return null;
     }
     
     $data = json_decode($response['body'], true);
     
     if (isset($data['errors'])) {
-        error_log("GraphQL errors: " . json_encode($data['errors']));
+        logMessage("GraphQL errors: " . json_encode($data['errors']), 'ERROR');
         return null;
     }
     
-    return [
+    $result = [
         'vendor' => $data['data']['inventoryItem']['variant']['product']['vendor'] ?? null,
         'title' => $data['data']['inventoryItem']['variant']['product']['title'] ?? null
     ];
+    
+    logMessage("Vendor info retrieved: " . json_encode($result));
+    
+    return $result;
 }
 
 $requestUri = $_SERVER['REQUEST_URI'];
 $requestMethod = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($requestUri, PHP_URL_PATH);
+
+logMessage("Incoming request: $requestMethod $path");
+
+// NEW: Logs endpoint
+if ($path === '/logs' && $requestMethod === 'GET') {
+    header('Content-Type: text/plain; charset=utf-8');
+    
+    if (file_exists($LOG_FILE)) {
+        $lines = isset($_GET['lines']) ? (int)$_GET['lines'] : 100;
+        
+        // Read last N lines
+        $file = file($LOG_FILE);
+        $totalLines = count($file);
+        $startLine = max(0, $totalLines - $lines);
+        $logContent = implode('', array_slice($file, $startLine));
+        
+        echo "=== INVENTORY MONITOR LOGS (Last $lines lines) ===\n";
+        echo "Total log entries: $totalLines\n";
+        echo "Log file: $LOG_FILE\n";
+        echo str_repeat('=', 60) . "\n\n";
+        echo $logContent;
+    } else {
+        echo "No log file found. Logs will be created when the system starts processing.\n";
+        echo "Log file location: $LOG_FILE\n";
+    }
+    exit;
+}
+
+if ($path === '/debug-config' && $requestMethod === 'GET') {
+    header('Content-Type: application/json');
+    
+    $configInfo = [
+        'shopify' => [
+            'shop' => $CONFIG['SHOPIFY_SHOP'],
+            'access_token' => $CONFIG['SHOPIFY_ACCESS_TOKEN'] ? substr($CONFIG['SHOPIFY_ACCESS_TOKEN'], 0, 10) . '...' : 'NOT SET',
+            'webhook_secret' => $CONFIG['SHOPIFY_WEBHOOK_SECRET'] ? 'SET (hidden)' : 'NOT SET'
+        ],
+        'email' => [
+            'from' => $CONFIG['EMAIL_FROM'],
+            'to' => $CONFIG['EMAIL_TO'],
+            'sendgrid_api_key' => $CONFIG['SENDGRID_API_KEY'] ? substr($CONFIG['SENDGRID_API_KEY'], 0, 10) . '...' : 'NOT SET'
+        ],
+        'monitoring' => [
+            'brands' => $CONFIG['BRANDS_TO_MONITOR'],
+            'total_brands' => count($CONFIG['BRANDS_TO_MONITOR'])
+        ],
+        'files' => [
+            'state_file' => $STATE_FILE,
+            'state_file_exists' => file_exists($STATE_FILE),
+            'log_file' => $LOG_FILE,
+            'log_file_exists' => file_exists($LOG_FILE),
+            'log_file_size' => file_exists($LOG_FILE) ? filesize($LOG_FILE) . ' bytes' : 'N/A'
+        ],
+        'current_state' => loadState(),
+        'timestamp' => date('c'),
+        'php_version' => PHP_VERSION
+    ];
+    
+    logMessage("Debug config accessed");
+    
+    echo json_encode($configInfo, JSON_PRETTY_PRINT);
+    exit;
+}
 
 if ($path === '/health' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
@@ -275,6 +375,8 @@ if ($path === '/health' && $requestMethod === 'GET') {
 
 if ($path === '/test-email' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
+    
+    logMessage("Test email requested");
     
     $result = sendEmail(
         '🧪 Test Email from Shopify Monitor',
@@ -293,6 +395,8 @@ if ($path === '/test-email' && $requestMethod === 'GET') {
 if ($path === '/check-now' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
     
+    logMessage("Manual inventory check initiated");
+    
     $results = [];
     $oosBrands = [];
     
@@ -307,6 +411,8 @@ if ($path === '/check-now' && $requestMethod === 'GET') {
             ];
         }
     }
+    
+    logMessage("Manual check completed. OOS brands: " . count($oosBrands));
     
     if (!empty($oosBrands)) {
         $emailMessage = "Manual inventory check completed. Found " . count($oosBrands) . " brand(s) completely out of stock:\n\n";
@@ -360,10 +466,12 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     $rawBody = file_get_contents('php://input');
     $hmac = $_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'] ?? '';
     
+    logMessage("Webhook received from Shopify");
+    
     if (!verifyWebhook($rawBody, $hmac)) {
         http_response_code(401);
         echo "Unauthorized";
-        error_log("Invalid webhook signature");
+        logMessage("Invalid webhook signature - request rejected", 'ERROR');
         exit;
     }
     
@@ -373,35 +481,35 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     echo "OK";
     
     if (empty($data)) {
-        error_log("Empty webhook body (test webhook)");
+        logMessage("Empty webhook body (test webhook)", 'WARNING');
         exit;
     }
     
-    error_log("Webhook body: " . json_encode($data));
+    logMessage("Webhook data: " . json_encode($data));
     
     sleep(3);
     
     $inventoryItemId = $data['inventory_item_id'] ?? null;
     
     if (!$inventoryItemId) {
-        error_log("No inventory_item_id in webhook");
+        logMessage("No inventory_item_id in webhook", 'ERROR');
         exit;
     }
     
     $productInfo = getVendorFromInventoryItem($inventoryItemId);
     
     if (!$productInfo || !$productInfo['vendor']) {
-        error_log("Could not find vendor for inventory item: $inventoryItemId");
+        logMessage("Could not find vendor for inventory item: $inventoryItemId", 'ERROR');
         exit;
     }
     
     $vendor = $productInfo['vendor'];
     
-    error_log("Product: {$productInfo['title']}");
-    error_log("Brand: $vendor");
+    logMessage("Product: {$productInfo['title']}");
+    logMessage("Brand: $vendor");
     
     if (!in_array($vendor, $CONFIG['BRANDS_TO_MONITOR'])) {
-        error_log("Brand $vendor is not monitored");
+        logMessage("Brand $vendor is not monitored - ignoring", 'INFO');
         exit;
     }
     
@@ -409,10 +517,11 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     $state = loadState();
     $lastState = $state[$vendor] ?? null;
     
-    error_log("$vendor: {$stockStatus['inStockProducts']}/{$stockStatus['totalProducts']} in stock");
+    logMessage("$vendor: {$stockStatus['inStockProducts']}/{$stockStatus['totalProducts']} in stock");
+    logMessage("Previous state for $vendor: " . ($lastState ?? 'NONE'));
     
     if ($stockStatus['allOOS'] && $lastState !== 'OOS') {
-        error_log("$vendor - ALL OUT OF STOCK");
+        logMessage("$vendor - ALL OUT OF STOCK - Sending notification", 'ALERT');
         
         sendEmail(
             "ALL $vendor Products OUT OF STOCK",
@@ -427,9 +536,8 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
         $state[$vendor] = 'OOS';
         saveState($state);
     }
-    // Back in stock
     elseif (!$stockStatus['allOOS'] && $stockStatus['inStockProducts'] > 0 && $lastState === 'OOS') {
-        error_log("$vendor - BACK IN STOCK");
+        logMessage("$vendor - BACK IN STOCK - Sending notification", 'ALERT');
         
         sendEmail(
             "$vendor Products BACK IN STOCK",
@@ -444,6 +552,8 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
         
         $state[$vendor] = 'IN_STOCK';
         saveState($state);
+    } else {
+        logMessage("No state change for $vendor - no notification needed");
     }
     
     exit;
@@ -451,6 +561,8 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
 
 if ($path === '/admin/register-webhook' && $requestMethod === 'POST') {
     header('Content-Type: application/json');
+    
+    logMessage("Webhook registration requested");
     
     $webhookUrl = "https://{$_SERVER['HTTP_HOST']}/webhook/inventory";
     
@@ -471,8 +583,10 @@ if ($path === '/admin/register-webhook' && $requestMethod === 'POST') {
     );
     
     if ($response['code'] === 201) {
+        logMessage("Webhook registered successfully", 'SUCCESS');
         echo json_encode(['success' => true, 'webhook' => json_decode($response['body'], true)]);
     } else {
+        logMessage("Webhook registration failed: " . $response['body'], 'ERROR');
         echo json_encode(['success' => false, 'error' => $response['body']]);
     }
     exit;
@@ -480,6 +594,8 @@ if ($path === '/admin/register-webhook' && $requestMethod === 'POST') {
 
 if ($path === '/admin/webhooks' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
+    
+    logMessage("Webhook list requested");
     
     $response = makeRequest(
         "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/webhooks.json",
@@ -505,12 +621,16 @@ if ($path === '/' && $requestMethod === 'GET') {
             'webhook' => '/webhook/inventory (POST)',
             'manualCheck' => '/check-now',
             'testEmail' => '/test-email',
+            'logs' => '/logs?lines=100 (GET)',
+            'debugConfig' => '/debug-config (GET)',
             'listWebhooks' => '/admin/webhooks',
             'registerWebhook' => '/admin/register-webhook (POST)'
         ]
     ]);
     exit;
 }
+
+logMessage("404 Not Found: $path", 'WARNING');
 
 http_response_code(404);
 echo json_encode(['error' => 'Not Found']);
