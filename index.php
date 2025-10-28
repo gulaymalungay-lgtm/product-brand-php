@@ -152,7 +152,7 @@ function getProductsForBrand($vendor) {
     logToFile("Fetching products for brand: $vendor");
     
     $allProducts = [];
-    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
+    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
     
     $pageCount = 0;
     while ($url && $pageCount < 10) { // Limit to 10 pages max
@@ -393,7 +393,7 @@ function getVendorFromInventoryItem($inventoryItemId) {
     ';
     
     $response = makeRequest(
-        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/graphql.json",
+        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/graphql.json",
         'POST',
         [
             "X-Shopify-Access-Token: {$CONFIG['SHOPIFY_ACCESS_TOKEN']}",
@@ -649,7 +649,7 @@ if ($path === '/admin/register-webhook' && $requestMethod === 'POST') {
     logToFile("Registering webhook: $webhookUrl");
     
     $response = makeRequest(
-        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/webhooks.json",
+        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/webhooks.json",
         'POST',
         [
             "X-Shopify-Access-Token: {$CONFIG['SHOPIFY_ACCESS_TOKEN']}",
@@ -679,7 +679,7 @@ if ($path === '/admin/webhooks' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
     
     $response = makeRequest(
-        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/webhooks.json",
+        "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2024-10/webhooks.json",
         'GET',
         [
             "X-Shopify-Access-Token: {$CONFIG['SHOPIFY_ACCESS_TOKEN']}",
