@@ -87,7 +87,7 @@ function getProductsForBrand($vendor) {
     global $CONFIG;
     
     $allProducts = [];
-    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
+    $url = "{$CONFIG['SHOPIFY_SHOP']}/admin/api/2025-10/products.json?vendor=" . urlencode($vendor) . "&limit=250";
     
     while ($url) {
         $response = makeRequest($url, 'GET', [
