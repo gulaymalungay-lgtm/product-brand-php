@@ -576,8 +576,17 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     logMessage("Product: {$productInfo['title']}");
     logMessage("Brand: $vendor");
     
-    if (!in_array($vendor, $CONFIG['BRANDS_TO_MONITOR'])) {
-        logMessage("Brand $vendor is not monitored - ignoring", 'INFO');
+    // Case-insensitive brand matching
+    $isMonitored = false;
+    foreach ($CONFIG['BRANDS_TO_MONITOR'] as $monitoredBrand) {
+        if (strcasecmp($vendor, $monitoredBrand) === 0) {
+            $isMonitored = true;
+            break;
+        }
+    }
+    
+    if (!$isMonitored) {
+        logMessage("Brand $vendor is not monitored - ignoring (Available brands: " . implode(', ', $CONFIG['BRANDS_TO_MONITOR']) . ")", 'INFO');
         exit;
     }
     
