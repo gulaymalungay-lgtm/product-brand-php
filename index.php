@@ -576,19 +576,25 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     logMessage("Product: {$productInfo['title']}");
     logMessage("Brand: $vendor");
     
-    // Case-insensitive brand matching
-    $isMonitored = false;
-    foreach ($CONFIG['BRANDS_TO_MONITOR'] as $monitoredBrand) {
-        if (strcasecmp($vendor, $monitoredBrand) === 0) {
-            $isMonitored = true;
-            break;
-        }
-    }
+    logMessage("DEBUG - Checking if '$vendor' is in monitored list");
+    logMessage("DEBUG - Vendor length: " . strlen($vendor) . " bytes");
+    logMessage("DEBUG - Total brands to monitor: " . count($CONFIG['BRANDS_TO_MONITOR']));
     
-    if (!$isMonitored) {
-        logMessage("Brand $vendor is not monitored - ignoring (Available brands: " . implode(', ', $CONFIG['BRANDS_TO_MONITOR']) . ")", 'INFO');
+    $found = in_array($vendor, $CONFIG['BRANDS_TO_MONITOR'], true);
+    logMessage("DEBUG - Strict match result: " . ($found ? 'FOUND' : 'NOT FOUND'));
+    
+    if (!$found) {
+        // Try to find similar matches for debugging
+        foreach ($CONFIG['BRANDS_TO_MONITOR'] as $idx => $brand) {
+            if (stripos($brand, 'Jansport') !== false || stripos($vendor, $brand) !== false) {
+                logMessage("DEBUG - Potential match at index $idx: '$brand' (length: " . strlen($brand) . ")");
+            }
+        }
+        logMessage("Brand $vendor is not monitored - ignoring", 'INFO');
         exit;
     }
+    
+    logMessage("Brand $vendor IS MONITORED - proceeding with check");
     
     $stockStatus = checkBrandStock($vendor);
     $state = loadState();
