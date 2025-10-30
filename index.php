@@ -506,7 +506,7 @@ if ($path === '/settings' && $requestMethod === 'GET') {
 <body>
     <div class="container">
         <div class="card">
-            <h1>🔧 Brand Monitor Settings</h1>
+            <h1>Brand Monitor Settings</h1>
             <p class="subtitle">Manage the brands being monitored for inventory changes</p>
             
             <div id="password-container">
@@ -894,7 +894,6 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     logMessage("DEBUG - Strict match result: " . ($found ? 'FOUND' : 'NOT FOUND'));
     
     if (!$found) {
-        // Try to find similar matches for debugging
         foreach ($CONFIG['BRANDS_TO_MONITOR'] as $idx => $brand) {
             if (stripos($brand, 'Jansport') !== false || stripos($vendor, $brand) !== false) {
                 logMessage("DEBUG - Potential match at index $idx: '$brand' (length: " . strlen($brand) . ")");
@@ -912,6 +911,18 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     
     logMessage("$vendor: {$stockStatus['inStockProducts']}/{$stockStatus['totalProducts']} in stock");
     logMessage("Previous state for $vendor: " . ($lastState ?? 'NONE'));
+    
+    if ($lastState === null) {
+        if ($stockStatus['allOOS']) {
+            $state[$vendor] = 'OOS';
+            logMessage("Initializing state for $vendor: OOS (no notification on first check)");
+        } else {
+            $state[$vendor] = 'IN_STOCK';
+            logMessage("Initializing state for $vendor: IN_STOCK (no notification on first check)");
+        }
+        saveState($state);
+        exit;
+    }
     
     if ($stockStatus['allOOS'] && $lastState !== 'OOS') {
         logMessage("$vendor - ALL OUT OF STOCK - Sending notification", 'ALERT');
