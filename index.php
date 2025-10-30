@@ -1027,4 +1027,4 @@ if ($path === '/' && $requestMethod === 'GET') {
 logMessage("404 Not Found: $path", 'WARNING');
 
 http_response_code(404);
-echo json_encode(['error' => 'Not Found'])
+echo json_encode(['error' => 'Not Found']);
