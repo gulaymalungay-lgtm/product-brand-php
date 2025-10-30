@@ -910,54 +910,52 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
     $lastState = $state[$vendor] ?? null;
     
     logMessage("$vendor: {$stockStatus['inStockProducts']}/{$stockStatus['totalProducts']} in stock");
-    logMessage("Previous state for $vendor: " . ($lastState ?? 'NONE'));
-    
-    if ($lastState === null) {
-        if ($stockStatus['allOOS']) {
-            $state[$vendor] = 'OOS';
-            logMessage("Initializing state for $vendor: OOS (no notification on first check)");
+    logMessage("Previous state for $vendor: " . ($lastState ?? 'NONE (First Check)'));
+
+    if ($stockStatus['allOOS']) {
+        if ($lastState !== 'OOS') {
+            $isFirstCheck = ($lastState === null);
+            logMessage("$vendor - ALL OUT OF STOCK" . ($isFirstCheck ? " (First Check)" : " (State Changed)") . " - Sending notification", 'ALERT');
+            
+            sendEmail(
+                "🚨 ALL $vendor Products OUT OF STOCK",
+                "All {$stockStatus['totalProducts']} products for \"$vendor\" are now out of stock.\n\n" .
+                "⚠️ ACTION REQUIRED: Hide this brand from your brand page.\n\n" .
+                "Brand: $vendor\n" .
+                "Total Products: {$stockStatus['totalProducts']}\n" .
+                "Out of Stock: {$stockStatus['oosProducts']}\n" .
+                ($isFirstCheck ? "Note: This is the first check for this brand\n" : "") .
+                "\nTimestamp: " . date('c')
+            );
         } else {
-            $state[$vendor] = 'IN_STOCK';
-            logMessage("Initializing state for $vendor: IN_STOCK (no notification on first check)");
+            logMessage("$vendor - Still OOS - No notification needed");
         }
-        saveState($state);
-        exit;
-    }
-    
-    if ($stockStatus['allOOS'] && $lastState !== 'OOS') {
-        logMessage("$vendor - ALL OUT OF STOCK - Sending notification", 'ALERT');
-        
-        sendEmail(
-            "🚨 ALL $vendor Products OUT OF STOCK",
-            "All {$stockStatus['totalProducts']} products for \"$vendor\" are now out of stock.\n\n" .
-            "⚠️ ACTION REQUIRED: Hide this brand from your brand page.\n\n" .
-            "Brand: $vendor\n" .
-            "Total Products: {$stockStatus['totalProducts']}\n" .
-            "Out of Stock: {$stockStatus['oosProducts']}\n\n" .
-            "Timestamp: " . date('c')
-        );
         
         $state[$vendor] = 'OOS';
         saveState($state);
     }
-    elseif (!$stockStatus['allOOS'] && $stockStatus['inStockProducts'] > 0 && $lastState === 'OOS') {
-        logMessage("$vendor - BACK IN STOCK - Sending notification", 'ALERT');
-        
-        sendEmail(
-            "✅ $vendor Products BACK IN STOCK",
-            "Good news! {$stockStatus['inStockProducts']} product(s) for \"$vendor\" are back in stock.\n\n" .
-            "✅ ACTION REQUIRED: Show this brand on your brand page.\n\n" .
-            "Brand: $vendor\n" .
-            "Total Products: {$stockStatus['totalProducts']}\n" .
-            "In Stock: {$stockStatus['inStockProducts']}\n" .
-            "Out of Stock: {$stockStatus['oosProducts']}\n\n" .
-            "Timestamp: " . date('c')
-        );
+    elseif ($stockStatus['inStockProducts'] > 0) {
+        if ($lastState === 'OOS') {
+            logMessage("$vendor - BACK IN STOCK - Sending notification", 'ALERT');
+            
+            sendEmail(
+                "✅ $vendor Products BACK IN STOCK",
+                "Good news! {$stockStatus['inStockProducts']} product(s) for \"$vendor\" are back in stock.\n\n" .
+                "✅ ACTION REQUIRED: Show this brand on your brand page.\n\n" .
+                "Brand: $vendor\n" .
+                "Total Products: {$stockStatus['totalProducts']}\n" .
+                "In Stock: {$stockStatus['inStockProducts']}\n" .
+                "Out of Stock: {$stockStatus['oosProducts']}\n\n" .
+                "Timestamp: " . date('c')
+            );
+        } elseif ($lastState === null) {
+            logMessage("$vendor - Has stock on first check - No notification needed (brand is healthy)");
+        } else {
+            logMessage("$vendor - Still has stock - No notification needed");
+        }
         
         $state[$vendor] = 'IN_STOCK';
         saveState($state);
-    } else {
-        logMessage("No state change for $vendor - no notification needed");
     }
     
     exit;
