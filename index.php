@@ -10,6 +10,110 @@ if (file_exists(__DIR__ . '/.env')) {
     }
 }
 
+$BRANDS_FILE = __DIR__ . '/brands.json';
+
+function loadBrands() {
+    global $BRANDS_FILE;
+    if (file_exists($BRANDS_FILE)) {
+        $data = json_decode(file_get_contents($BRANDS_FILE), true);
+        return $data['brands'] ?? getDefaultBrands();
+    }
+    return getDefaultBrands();
+}
+
+function saveBrands($brands) {
+    global $BRANDS_FILE;
+    file_put_contents($BRANDS_FILE, json_encode(['brands' => $brands], JSON_PRETTY_PRINT));
+}
+
+function getDefaultBrands() {
+    return [
+        '24 Bottles',
+        '360 Degrees Water Bottles',
+        'ALIFEDESIGN',
+        'Alpaka',
+        'Anello',
+        'Bagsmart',
+        'Bellroy',
+        'Black Blaze',
+        'Black Ember',
+        'Bobby Backpack by XD Design',
+        'Bric\'s',
+        'Briggs & Riley',
+        'C-Secure',
+        'Cabeau',
+        'CabinZero',
+        'Case Logic',
+        'Cilocala',
+        'Conwood',
+        'Crossing',
+        'Crossing Wallet',
+        'Doughnut',
+        'Eagle Creek',
+        'Eastpak',
+        'Easynap',
+        'Echolac',
+        'ELECOM',
+        'Ember',
+        'FLEXTAIL',
+        'Fulton Umbrellas',
+        'GASTON LUGA',
+        'Go Girl',
+        'Go Travel',
+        'Haan Hand Sanitisers',
+        'Hellolulu',
+        'Heroclip',
+        'Human Gear',
+        'Jansport',
+        'July',
+        'KeepCup',
+        'King Jim',
+        'Kinto',
+        'KiU',
+        'Klean Kanteen',
+        'Klipsta',
+        'Knirps Umbrellas',
+        'Legato Largo',
+        'LOQI',
+        'Made By Fressko',
+        'MAH',
+        'Miamily',
+        'Nalgene Water Bottles',
+        'Nebo Flashlights',
+        'Nifteen',
+        'Notabag',
+        'O2COOL',
+        'Oasis Bottles',
+        'OOFOS',
+        'Orbitkey Key Organizers',
+        'Osprey',
+        'Pacsafe',
+        'Paire',
+        'Pitas',
+        'Porsche Design',
+        'RAWROW',
+        'Retrokitchen',
+        'SACHI',
+        'Sandqvist',
+        'Sea To Summit',
+        'Secrid',
+        'Shupatto',
+        'SKROSS',
+        'Status Anxiety',
+        'Stratic',
+        'STTOKE',
+        'TEST',
+        'The Planet Traveller',
+        'THULE',
+        'TPT TEST1',
+        'Tropicfeel',
+        'Ubiqua',
+        'Varigrip Hand Exerciser',
+        'Wacaco',
+        'WPC',
+    ];
+}
+
 $CONFIG = [
     'SHOPIFY_SHOP' => getenv('SHOPIFY_SHOP'),
     'SHOPIFY_ACCESS_TOKEN' => getenv('SHOPIFY_ACCESS_TOKEN'),
@@ -17,75 +121,8 @@ $CONFIG = [
     'EMAIL_FROM' => getenv('EMAIL_FROM'),
     'EMAIL_TO' => getenv('EMAIL_TO'),
     'SENDGRID_API_KEY' => getenv('SENDGRID_API_KEY'),
-    'BRANDS_TO_MONITOR' => [
-        'ALIFEDESIGN',
-        'Alpaka',
-        'Anello',
-        'Bagsmart',
-        'Bellroy',
-        'Black Ember',
-        'Bobby Backpack by XD Design',
-        'Bric\'s',
-        'Briggs & Riley',
-        'Cabeau',
-        'Cabinzero',
-        'Case Logic',
-        'Cilocala',
-        'Conwood',
-        'Crossing',
-        'Doughnut',
-        'Eagle Creek',
-        'Eastpak',
-        'Easynap',
-        'Echolac',
-        'Flextail',
-        'Fulton Umbrellas',
-        'Gaston Luga',
-        'Go Travel',
-        'Hellolulu',
-        'Heroclip',
-        'Human Gear',
-        'Jansport',
-        'July',
-        'Kinto',
-        'Kiu',
-        'Klean Kanteen',
-        'Klipsta',
-        'Knirps Umbrellas',
-        'Legato Largo',
-        'Loqi',
-        'Made by Fressko',
-        'Mah',
-        'Miamily',
-        'Nalgene Water Bottles',
-        'Notabag',
-        'Oasis Bottles',
-        'Orbitkey Key Organizers',
-        'Osprey',
-        'Pacsafe',
-        'Pair',
-        'Pitas',
-        'Porsche Design',
-        'Rawrow',
-        'Retrokitchen',
-        'Sachi',
-        'Sandqvist',
-        'Sea to Summit',
-        'Secrid',
-        'Shupatto',
-        'Skross',
-        'Status Anxiety',
-        'Stratic',
-        'Sttoke',
-        'Test',
-        'Thule',
-        'Tropicfeel',
-        'Ubiqua',
-        'Varigrip Hand Exerciser',
-        'Wacaco',
-        'Wpc',
-        '24 Bottles'
-    ]
+    'SETTINGS_PASSWORD' => getenv('SETTINGS_PASSWORD') ?: 'admin123',
+    'BRANDS_TO_MONITOR' => loadBrands()
 ];
 
 $requiredVars = ['SHOPIFY_SHOP', 'SHOPIFY_ACCESS_TOKEN', 'SHOPIFY_WEBHOOK_SECRET', 
@@ -102,13 +139,12 @@ foreach ($requiredVars as $var) {
 $STATE_FILE = __DIR__ . '/notification_state.json';
 $LOG_FILE = __DIR__ . '/inventory_monitor.log';
 
-// Custom logging function
 function logMessage($message, $level = 'INFO') {
     global $LOG_FILE;
     $timestamp = date('Y-m-d H:i:s');
     $logEntry = "[$timestamp] [$level] $message\n";
     file_put_contents($LOG_FILE, $logEntry, FILE_APPEND);
-    error_log($message); // Also log to PHP error log
+    error_log($message);
 }
 
 function loadState() {
@@ -243,7 +279,6 @@ function checkBrandStock($vendor) {
     return $result;
 }
 
-// Send email via SendGrid
 function sendEmail($subject, $message) {
     global $CONFIG;
     
@@ -253,6 +288,21 @@ function sendEmail($subject, $message) {
         logMessage("No SendGrid API key configured", 'ERROR');
         return ['success' => false, 'error' => 'No email service configured'];
     }
+    
+    $emailTo = array_map('trim', explode(',', $CONFIG['EMAIL_TO']));
+    $recipients = [];
+    foreach ($emailTo as $email) {
+        if (!empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $recipients[] = ['email' => $email];
+        }
+    }
+    
+    if (empty($recipients)) {
+        logMessage("No valid email recipients configured", 'ERROR');
+        return ['success' => false, 'error' => 'No valid email recipients'];
+    }
+    
+    logMessage("Sending to " . count($recipients) . " recipient(s): " . implode(', ', array_column($recipients, 'email')));
     
     $htmlMessage = '
 <!DOCTYPE html>
@@ -277,7 +327,7 @@ function sendEmail($subject, $message) {
     
     $data = [
         'personalizations' => [[
-            'to' => [['email' => $CONFIG['EMAIL_TO']]]
+            'to' => $recipients
         ]],
         'from' => [
             'email' => $CONFIG['EMAIL_FROM'],
@@ -301,8 +351,8 @@ function sendEmail($subject, $message) {
     ], json_encode($data));
     
     if ($response['code'] === 202) {
-        logMessage("Email sent successfully: $subject", 'SUCCESS');
-        return ['success' => true, 'method' => 'sendgrid'];
+        logMessage("Email sent successfully to " . count($recipients) . " recipient(s): $subject", 'SUCCESS');
+        return ['success' => true, 'method' => 'sendgrid', 'recipients' => count($recipients)];
     } else {
         logMessage("SendGrid error: " . $response['body'], 'ERROR');
         return ['success' => false, 'error' => $response['body']];
@@ -370,14 +420,272 @@ $path = parse_url($requestUri, PHP_URL_PATH);
 
 logMessage("Incoming request: $requestMethod $path");
 
-// NEW: Logs endpoint
+if ($path === '/settings' && $requestMethod === 'GET') {
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Monitor Settings</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .password-form { max-width: 400px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #333; font-weight: 500; }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        textarea { min-height: 400px; font-family: 'Courier New', monospace; }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn-secondary {
+            background: #6c757d;
+            margin-left: 10px;
+        }
+        .btn-secondary:hover { background: #545b62; }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info-text { color: #666; font-size: 14px; margin-top: 8px; }
+        .brand-count { 
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        #brands-container { display: none; }
+        .help-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🔧 Brand Monitor Settings</h1>
+            <p class="subtitle">Manage the brands being monitored for inventory changes</p>
+            
+            <div id="password-container">
+                <form class="password-form" onsubmit="checkPassword(event)">
+                    <div class="form-group">
+                        <label for="password">Enter Password:</label>
+                        <input type="password" id="password" required autofocus>
+                        <p class="info-text">This password is set in your .env file as SETTINGS_PASSWORD</p>
+                    </div>
+                    <button type="submit" class="btn">Access Settings</button>
+                </form>
+            </div>
+
+            <div id="brands-container">
+                <div class="help-text">
+                    <strong>Instructions:</strong><br>
+                    • Enter one brand name per line<br>
+                    • Brand names are case-sensitive and must match exactly as they appear in Shopify<br>
+                    • Remove empty lines before saving<br>
+                    • Current count: <span class="brand-count" id="brand-count">0</span>
+                </div>
+
+                <div id="message-container"></div>
+                
+                <form onsubmit="saveBrands(event)">
+                    <div class="form-group">
+                        <label for="brands">Monitored Brands (one per line):</label>
+                        <textarea id="brands" required></textarea>
+                    </div>
+                    <button type="submit" class="btn">Save Brands</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadBrands()">Reset</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPassword = '';
+
+        function checkPassword(e) {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            currentPassword = password;
+            
+            fetch('/api/verify-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.valid) {
+                    document.getElementById('password-container').style.display = 'none';
+                    document.getElementById('brands-container').style.display = 'block';
+                    loadBrands();
+                } else {
+                    alert('Invalid password. Please try again.');
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function loadBrands() {
+            fetch('/api/get-brands', {
+                headers: { 'X-Password': currentPassword }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.brands) {
+                    document.getElementById('brands').value = data.brands.join('\n');
+                    updateBrandCount();
+                }
+            })
+            .catch(err => alert('Error loading brands: ' + err.message));
+        }
+
+        function saveBrands(e) {
+            e.preventDefault();
+            const brandsText = document.getElementById('brands').value;
+            const brands = brandsText.split('\n')
+                .map(b => b.trim())
+                .filter(b => b.length > 0);
+            
+            if (brands.length === 0) {
+                alert('Please enter at least one brand name.');
+                return;
+            }
+
+            fetch('/api/save-brands', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Password': currentPassword 
+                },
+                body: JSON.stringify({ brands: brands })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('message-container');
+                if (data.success) {
+                    container.innerHTML = '<div class="alert alert-success">✅ Brands saved successfully! Monitoring ' + data.count + ' brands.</div>';
+                    updateBrandCount();
+                } else {
+                    container.innerHTML = '<div class="alert alert-error">❌ Error: ' + (data.error || 'Unknown error') + '</div>';
+                }
+                setTimeout(() => container.innerHTML = '', 5000);
+            })
+            .catch(err => {
+                document.getElementById('message-container').innerHTML = 
+                    '<div class="alert alert-error">❌ Error: ' + err.message + '</div>';
+            });
+        }
+
+        function updateBrandCount() {
+            const text = document.getElementById('brands').value;
+            const count = text.split('\n').filter(b => b.trim().length > 0).length;
+            document.getElementById('brand-count').textContent = count;
+        }
+
+        document.getElementById('brands')?.addEventListener('input', updateBrandCount);
+    </script>
+</body>
+</html>
+    <?php
+    exit;
+}
+
+if ($path === '/api/verify-password' && $requestMethod === 'POST') {
+    header('Content-Type: application/json');
+    $input = json_decode(file_get_contents('php://input'), true);
+    $password = $input['password'] ?? '';
+    echo json_encode(['valid' => $password === $CONFIG['SETTINGS_PASSWORD']]);
+    exit;
+}
+
+if ($path === '/api/get-brands' && $requestMethod === 'GET') {
+    header('Content-Type: application/json');
+    $password = $_SERVER['HTTP_X_PASSWORD'] ?? '';
+    if ($password !== $CONFIG['SETTINGS_PASSWORD']) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    echo json_encode(['brands' => $CONFIG['BRANDS_TO_MONITOR']]);
+    exit;
+}
+
+if ($path === '/api/save-brands' && $requestMethod === 'POST') {
+    header('Content-Type: application/json');
+    $password = $_SERVER['HTTP_X_PASSWORD'] ?? '';
+    if ($password !== $CONFIG['SETTINGS_PASSWORD']) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    $brands = $input['brands'] ?? [];
+    
+    if (empty($brands)) {
+        echo json_encode(['success' => false, 'error' => 'No brands provided']);
+        exit;
+    }
+    
+    saveBrands($brands);
+    logMessage("Brands updated via settings page. New count: " . count($brands), 'INFO');
+    
+    $CONFIG['BRANDS_TO_MONITOR'] = loadBrands();
+    
+    echo json_encode(['success' => true, 'count' => count($brands)]);
+    exit;
+}
+
 if ($path === '/logs' && $requestMethod === 'GET') {
     header('Content-Type: text/plain; charset=utf-8');
     
     if (file_exists($LOG_FILE)) {
         $lines = isset($_GET['lines']) ? (int)$_GET['lines'] : 100;
         
-        // Read last N lines
         $file = file($LOG_FILE);
         $totalLines = count($file);
         $startLine = max(0, $totalLines - $lines);
@@ -416,6 +724,8 @@ if ($path === '/debug-config' && $requestMethod === 'GET') {
         'files' => [
             'state_file' => $STATE_FILE,
             'state_file_exists' => file_exists($STATE_FILE),
+            'brands_file' => $BRANDS_FILE,
+            'brands_file_exists' => file_exists($BRANDS_FILE),
             'log_file' => $LOG_FILE,
             'log_file_exists' => file_exists($LOG_FILE),
             'log_file_size' => file_exists($LOG_FILE) ? filesize($LOG_FILE) . ' bytes' : 'N/A'
@@ -435,7 +745,7 @@ if ($path === '/health' && $requestMethod === 'GET') {
     header('Content-Type: application/json');
     echo json_encode([
         'status' => 'ok',
-        'monitoring' => $CONFIG['BRANDS_TO_MONITOR'],
+        'monitoring' => count($CONFIG['BRANDS_TO_MONITOR']) . ' brands',
         'timestamp' => date('c')
     ]);
     exit;
@@ -449,11 +759,11 @@ if ($path === '/test-email' && $requestMethod === 'GET') {
     $result = sendEmail(
         '🧪 Test Email from Shopify Monitor',
         "This is a test email to verify your email configuration is working.\n\n" .
-        "Method: sendgrid\n" .
+        "Method: SendGrid\n" .
         "From: {$CONFIG['EMAIL_FROM']}\n" .
         "To: {$CONFIG['EMAIL_TO']}\n" .
         "Timestamp: " . date('c') . "\n\n" .
-        "If you're seeing this, your email setup is working correctly! "
+        "If you're seeing this, your email setup is working correctly!"
     );
     
     echo json_encode($result);
@@ -607,7 +917,7 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
         logMessage("$vendor - ALL OUT OF STOCK - Sending notification", 'ALERT');
         
         sendEmail(
-            "ALL $vendor Products OUT OF STOCK",
+            "🚨 ALL $vendor Products OUT OF STOCK",
             "All {$stockStatus['totalProducts']} products for \"$vendor\" are now out of stock.\n\n" .
             "⚠️ ACTION REQUIRED: Hide this brand from your brand page.\n\n" .
             "Brand: $vendor\n" .
@@ -623,9 +933,9 @@ if ($path === '/webhook/inventory' && $requestMethod === 'POST') {
         logMessage("$vendor - BACK IN STOCK - Sending notification", 'ALERT');
         
         sendEmail(
-            "$vendor Products BACK IN STOCK",
+            "✅ $vendor Products BACK IN STOCK",
             "Good news! {$stockStatus['inStockProducts']} product(s) for \"$vendor\" are back in stock.\n\n" .
-            "ACTION REQUIRED: Show this brand on your brand page.\n\n" .
+            "✅ ACTION REQUIRED: Show this brand on your brand page.\n\n" .
             "Brand: $vendor\n" .
             "Total Products: {$stockStatus['totalProducts']}\n" .
             "In Stock: {$stockStatus['inStockProducts']}\n" .
@@ -701,6 +1011,7 @@ if ($path === '/' && $requestMethod === 'GET') {
         'monitoring' => count($CONFIG['BRANDS_TO_MONITOR']) . ' brands',
         'endpoints' => [
             'health' => '/health',
+            'settings' => '/settings (Password Protected)',
             'webhook' => '/webhook/inventory (POST)',
             'manualCheck' => '/check-now',
             'testEmail' => '/test-email',
@@ -716,4 +1027,4 @@ if ($path === '/' && $requestMethod === 'GET') {
 logMessage("404 Not Found: $path", 'WARNING');
 
 http_response_code(404);
-echo json_encode(['error' => 'Not Found']);
+echo json_encode(['error' => 'Not Found'])
